@@ -112,6 +112,8 @@ VITE_FAMILY_MEDIA_UPLOAD_MODE=oss
 
 `VITE_FAMILY_MEDIA_UPLOAD_MODE=oss` enables browser direct upload for family media when the backend
 OSS configuration is also enabled. Otherwise the app uses normal backend multipart upload.
+OSS CDN/custom domains are configured in `home-admin` with `FILE_OSS_BASE_URL`; the web app keeps
+using backend file links and follows backend redirects.
 
 ## Useful Commands
 
