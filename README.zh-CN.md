@@ -91,6 +91,7 @@ http://localhost:3001/m
 VITE_API_URL=http://localhost:3000/api/v1
 VITE_APP_TITLE=home 管理后台
 VITE_FAMILY_MEDIA_UPLOAD_MODE=local
+VITE_ASSET_BASE_URL=
 ```
 
 生产环境使用内置 nginx 镜像时，推荐使用同源 API 路径：
@@ -98,10 +99,14 @@ VITE_FAMILY_MEDIA_UPLOAD_MODE=local
 ```bash
 VITE_API_URL=/api/v1
 VITE_FAMILY_MEDIA_UPLOAD_MODE=oss
+VITE_ASSET_BASE_URL=https://assets.grin.cool/assets/home/
 ```
 
 `VITE_FAMILY_MEDIA_UPLOAD_MODE=oss` 会让家庭圈/群聊媒体走浏览器直传，但后端也必须启用 OSS。
 否则会使用普通后端 multipart 上传。
+
+`VITE_ASSET_BASE_URL` 是构建期静态资源 CDN 前缀，用于让生成的 JS/CSS 走 CDN。
+阿里云 OSS/CDN 配置见 [`docs/aliyun-cdn-assets.md`](docs/aliyun-cdn-assets.md)。
 
 ## 常用命令
 

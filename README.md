@@ -101,6 +101,7 @@ Create `.env.local` or use the defaults from `.env.example`:
 VITE_API_URL=http://localhost:3000/api/v1
 VITE_APP_TITLE=home 管理后台
 VITE_FAMILY_MEDIA_UPLOAD_MODE=local
+VITE_ASSET_BASE_URL=
 ```
 
 For production behind the included nginx image, prefer a same-origin API path:
@@ -108,12 +109,16 @@ For production behind the included nginx image, prefer a same-origin API path:
 ```bash
 VITE_API_URL=/api/v1
 VITE_FAMILY_MEDIA_UPLOAD_MODE=oss
+VITE_ASSET_BASE_URL=https://assets.grin.cool/assets/home/
 ```
 
 `VITE_FAMILY_MEDIA_UPLOAD_MODE=oss` enables browser direct upload for family media when the backend
 OSS configuration is also enabled. Otherwise the app uses normal backend multipart upload.
 OSS CDN/custom domains are configured in `home-admin` with `FILE_OSS_BASE_URL`; the web app keeps
 using backend file links and follows backend redirects.
+
+`VITE_ASSET_BASE_URL` is an optional build-time CDN prefix for generated JS/CSS assets. See
+[`docs/aliyun-cdn-assets.md`](docs/aliyun-cdn-assets.md) for the Aliyun OSS/CDN setup.
 
 ## Useful Commands
 
