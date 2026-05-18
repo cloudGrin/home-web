@@ -279,6 +279,11 @@ export function TaskFormModal({
         ]
       : remindOffsetOptions;
   const watchedTaskType = Form.useWatch('taskType', form);
+  const watchedListId = Form.useWatch('listId', form);
+  const selectedFormList =
+    lists.find((list) => list.id === watchedListId) ??
+    (task && task.listId === watchedListId ? task.list : undefined);
+  const canAssignTask = selectedFormList?.scope !== 'personal';
   const isAnniversaryForm =
     watchedTaskType === 'anniversary' || (!task && defaultTaskType === 'anniversary');
 
@@ -360,6 +365,14 @@ export function TaskFormModal({
 
     form.setFieldValue('listId', firstActiveListId);
   }, [firstActiveListId, form, open, task]);
+
+  useEffect(() => {
+    if (!open || canAssignTask || !form.getFieldValue('assigneeId')) {
+      return;
+    }
+
+    form.setFieldValue('assigneeId', undefined);
+  }, [canAssignTask, form, open, watchedListId]);
 
   const handleOk = async () => {
     let values: TaskFormValues;
@@ -511,18 +524,20 @@ export function TaskFormModal({
             />
           </Form.Item>
 
-          <Form.Item name="assigneeId" label="负责人">
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              placeholder="可不指定"
-              options={users.map((user) => ({
-                label: user.realName || user.nickname || user.username,
-                value: user.id,
-              }))}
-            />
-          </Form.Item>
+          {canAssignTask ? (
+            <Form.Item name="assigneeId" label="负责人">
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder="可不指定"
+                options={users.map((user) => ({
+                  label: user.realName || user.nickname || user.username,
+                  value: user.id,
+                }))}
+              />
+            </Form.Item>
+          ) : null}
         </div>
 
         <Form.Item name="description" label="描述">

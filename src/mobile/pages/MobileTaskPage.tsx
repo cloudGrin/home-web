@@ -123,14 +123,7 @@ interface TaskDraft {
 }
 
 type MatrixQuadrant = 'important-urgent' | 'important' | 'urgent' | 'normal';
-type MobileDatePreset = 'all' | 'today' | 'next7' | 'month' | 'custom';
 type MobileSortValue = 'default' | 'dueAtAsc' | 'dueAtDesc' | 'createdAtDesc';
-
-interface MobileDateFilter {
-  preset: MobileDatePreset;
-  customStart?: Date;
-  customEnd?: Date;
-}
 
 const taskViews: MobileTaskView[] = ['today', 'calendar', 'matrix', 'anniversary'];
 
@@ -175,14 +168,6 @@ const statusOptions: Array<{ label: string; value: 'all' | TaskStatus }> = [
   { label: '全部', value: 'all' },
   { label: '待办', value: 'pending' },
   { label: '完成', value: 'completed' },
-];
-
-const datePresetOptions: Array<{ label: string; value: MobileDatePreset }> = [
-  { label: '全部日期', value: 'all' },
-  { label: '今天', value: 'today' },
-  { label: '未来 7 天', value: 'next7' },
-  { label: '本月', value: 'month' },
-  { label: '自定义', value: 'custom' },
 ];
 
 const sortOptions: Array<{ label: string; value: MobileSortValue }> = [
@@ -283,7 +268,6 @@ function buildQueryParams(
     tags?: string[];
     page: number;
     sortValue: MobileSortValue;
-    dateFilter: MobileDateFilter;
   },
   month: dayjs.Dayjs
 ): QueryTasksParams {
@@ -471,7 +455,6 @@ export function MobileTaskPage() {
   const [status, setStatus] = useState<TaskStatus>();
   const [tagText, setTagText] = useState('');
   const [sortValue, setSortValue] = useState<MobileSortValue>('default');
-  const [dateFilter, setDateFilter] = useState<MobileDateFilter>({ preset: 'all' });
   const [calendarMonth, setCalendarMonth] = useState(() => dayjs(selectedDay).startOf('month'));
   const [editorOpen, setEditorOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -503,22 +486,10 @@ export function MobileTaskPage() {
         tags,
         page,
         sortValue,
-        dateFilter,
       },
       calendarMonth
     );
-  }, [
-    assigneeId,
-    calendarMonth,
-    dateFilter,
-    keyword,
-    listId,
-    page,
-    sortValue,
-    status,
-    tagText,
-    view,
-  ]);
+  }, [assigneeId, calendarMonth, keyword, listId, page, sortValue, status, tagText, view]);
   const tasksQuery = useTasks(queryParams);
   const selectedTaskQuery = useTask(selectedTaskId ?? null);
   const createTask = useCreateTask();
@@ -544,12 +515,9 @@ export function MobileTaskPage() {
         status,
         tagText,
         sortValue,
-        dateFilter.preset,
-        dateFilter.customStart?.toISOString(),
-        dateFilter.customEnd?.toISOString(),
         calendarMonth.format('YYYY-MM'),
       ].join('|'),
-    [assigneeId, calendarMonth, dateFilter, keyword, listId, sortValue, status, tagText, view]
+    [assigneeId, calendarMonth, keyword, listId, sortValue, status, tagText, view]
   );
   const pageTasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data?.items]);
   const aggregatedTasks = useMemo(() => flattenPagedTasks(pagedTasks, page), [page, pagedTasks]);
@@ -844,7 +812,6 @@ export function MobileTaskPage() {
               currentUserId={currentUserId}
               loading={tasksQuery.isLoading}
               emptyText={getTaskListEmptyText(view)}
-              showDayHeader={view === 'list'}
               onOpen={openTaskDetail}
               onEdit={openEdit}
               onToggleComplete={toggleComplete}
@@ -939,8 +906,6 @@ export function MobileTaskPage() {
         status={status}
         tagText={tagText}
         sortValue={sortValue}
-        dateFilter={dateFilter}
-        view={view}
         onClose={() => setFilterOpen(false)}
         onApply={(next) => {
           setPage(1);
@@ -949,7 +914,6 @@ export function MobileTaskPage() {
           setStatus(next.status);
           setTagText(next.tagText);
           setSortValue(next.sortValue);
-          setDateFilter(next.dateFilter);
           setFilterOpen(false);
         }}
       />
@@ -1099,7 +1063,6 @@ function TaskListView({
   currentUserId,
   loading,
   emptyText,
-  showDayHeader,
   onOpen,
   onEdit,
   onToggleComplete,
@@ -1115,7 +1078,6 @@ function TaskListView({
   currentUserId?: number;
   loading?: boolean;
   emptyText: string;
-  showDayHeader?: boolean;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
   onToggleComplete: (task: Task) => void;
@@ -1146,9 +1108,6 @@ function TaskListView({
     <div className="mobile-task-groups">
       {grouped.map(([day, dayTasks]) => (
         <section key={day}>
-          {showDayHeader ? (
-            <div className="mobile-task-day-title">{dayjs(day).format('MM月DD日')}</div>
-          ) : null}
           <div className="mobile-task-list-card">
             {dayTasks.map((task) => (
               <TaskRow
@@ -1973,7 +1932,14 @@ export function TaskEditorPopup({
   }, [open]);
 
   const updateDraft = (patch: Partial<TaskDraft>) => {
-    setDraft((previous) => ({ ...previous, ...patch }));
+    setDraft((previous) => {
+      const next = { ...previous, ...patch };
+      const nextList = lists.find((list) => list.id === next.listId);
+      if (nextList?.scope === 'personal') {
+        next.assigneeId = undefined;
+      }
+      return next;
+    });
   };
 
   const selectTaskType = (taskType: TaskType) => {
@@ -2004,10 +1970,21 @@ export function TaskEditorPopup({
   };
 
   const selectedList = lists.find((list) => list.id === draft.listId);
-  const selectedUser = users.find((user) => user.id === draft.assigneeId);
+  const canAssignTask = selectedList?.scope !== 'personal';
+  const selectedUser = canAssignTask ? users.find((user) => user.id === draft.assigneeId) : null;
   const isAnniversary = draft.taskType === 'anniversary';
   const listShortcuts = getTaskListShortcuts(lists, draft.listId);
   const hasMoreLists = lists.filter((list) => !list.isArchived).length > listShortcuts.length;
+
+  useEffect(() => {
+    if (!open || !draft.assigneeId) {
+      return;
+    }
+
+    if (selectedList?.scope === 'personal') {
+      setDraft((previous) => ({ ...previous, assigneeId: undefined }));
+    }
+  }, [draft.assigneeId, open, selectedList?.scope]);
 
   const handleAttachmentUpload = async (file?: File) => {
     if (!file) return;
@@ -2229,10 +2206,12 @@ export function TaskEditorPopup({
             <FolderOpenOutlined />
             <span>清单</span>
           </button>
-          <button type="button" onClick={() => setAssigneeOpen(true)}>
-            <UserOutlined />
-            <span>负责人</span>
-          </button>
+          {canAssignTask ? (
+            <button type="button" onClick={() => setAssigneeOpen(true)}>
+              <UserOutlined />
+              <span>负责人</span>
+            </button>
+          ) : null}
           <button type="button" onClick={() => setMoreOpen(true)}>
             <EllipsisOutlined />
             <span>更多</span>
@@ -2337,18 +2316,20 @@ export function TaskEditorPopup({
           }
         />
       </FieldSheet>
-      <FieldSheet title="负责人" open={assigneeOpen} onClose={() => setAssigneeOpen(false)}>
-        <Selector
-          options={[
-            { label: '不指定', value: 0 },
-            ...users.map((user) => ({ label: getUserName(user), value: user.id })),
-          ]}
-          value={[draft.assigneeId ?? 0]}
-          onChange={(items: Array<string | number>) =>
-            updateDraft({ assigneeId: Number(items[0]) || undefined })
-          }
-        />
-      </FieldSheet>
+      {canAssignTask ? (
+        <FieldSheet title="负责人" open={assigneeOpen} onClose={() => setAssigneeOpen(false)}>
+          <Selector
+            options={[
+              { label: '不指定', value: 0 },
+              ...users.map((user) => ({ label: getUserName(user), value: user.id })),
+            ]}
+            value={[draft.assigneeId ?? 0]}
+            onChange={(items: Array<string | number>) =>
+              updateDraft({ assigneeId: Number(items[0]) || undefined })
+            }
+          />
+        </FieldSheet>
+      ) : null}
       <FieldSheet title="标签" open={tagsOpen} onClose={() => setTagsOpen(false)}>
         <Input
           value={draft.tags}
@@ -2544,8 +2525,6 @@ function TaskFilterPopup({
   status,
   tagText,
   sortValue,
-  dateFilter,
-  view,
   onClose,
   onApply,
 }: {
@@ -2557,8 +2536,6 @@ function TaskFilterPopup({
   status?: TaskStatus;
   tagText: string;
   sortValue: MobileSortValue;
-  dateFilter: MobileDateFilter;
-  view: MobileTaskView;
   onClose: () => void;
   onApply: (values: {
     listId?: number;
@@ -2566,7 +2543,6 @@ function TaskFilterPopup({
     status?: TaskStatus;
     tagText: string;
     sortValue: MobileSortValue;
-    dateFilter: MobileDateFilter;
   }) => void;
 }) {
   const [draftListId, setDraftListId] = useState<number | undefined>(listId);
@@ -2574,9 +2550,6 @@ function TaskFilterPopup({
   const [draftStatus, setDraftStatus] = useState<TaskStatus | undefined>(status);
   const [draftTags, setDraftTags] = useState(tagText);
   const [draftSortValue, setDraftSortValue] = useState<MobileSortValue>(sortValue);
-  const [draftDateFilter, setDraftDateFilter] = useState<MobileDateFilter>(dateFilter);
-  const [customStartOpen, setCustomStartOpen] = useState(false);
-  const [customEndOpen, setCustomEndOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -2585,8 +2558,7 @@ function TaskFilterPopup({
     setDraftStatus(status);
     setDraftTags(tagText);
     setDraftSortValue(sortValue);
-    setDraftDateFilter(dateFilter);
-  }, [assigneeId, dateFilter, listId, open, sortValue, status, tagText]);
+  }, [assigneeId, listId, open, sortValue, status, tagText]);
 
   const resetFilters = () => {
     setDraftListId(undefined);
@@ -2594,9 +2566,7 @@ function TaskFilterPopup({
     setDraftStatus(undefined);
     setDraftTags('');
     setDraftSortValue('default');
-    setDraftDateFilter({ preset: 'all' });
   };
-  const showDateFilter = view === 'list';
 
   return (
     <Popup visible={open} onMaskClick={onClose} bodyStyle={{ borderRadius: '18px 18px 0 0' }}>
@@ -2657,35 +2627,6 @@ function TaskFilterPopup({
             }
           />
         </div>
-        {showDateFilter ? (
-          <div className="mobile-field mobile-field-card">
-            <label>日期</label>
-            <Selector
-              options={datePresetOptions}
-              value={[draftDateFilter.preset]}
-              onChange={(items: Array<string | number>) =>
-                setDraftDateFilter((previous) => ({
-                  ...previous,
-                  preset: (items[0] as MobileDatePreset) || 'all',
-                }))
-              }
-            />
-            {draftDateFilter.preset === 'custom' ? (
-              <div className="mobile-editor-chip-grid mt-2">
-                <Button size="small" fill="outline" onClick={() => setCustomStartOpen(true)}>
-                  {draftDateFilter.customStart
-                    ? dayjs(draftDateFilter.customStart).format('MM-DD')
-                    : '开始日期'}
-                </Button>
-                <Button size="small" fill="outline" onClick={() => setCustomEndOpen(true)}>
-                  {draftDateFilter.customEnd
-                    ? dayjs(draftDateFilter.customEnd).format('MM-DD')
-                    : '结束日期'}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
         <div className="mobile-popup-actions">
           <Button size="small" fill="outline" onClick={resetFilters}>
             重置
@@ -2700,33 +2641,12 @@ function TaskFilterPopup({
                 status: draftStatus,
                 tagText: draftTags,
                 sortValue: draftSortValue,
-                dateFilter: showDateFilter ? draftDateFilter : { preset: 'all' },
               })
             }
           >
             应用
           </Button>
         </div>
-        <DatePicker
-          visible={customStartOpen}
-          value={draftDateFilter.customStart ?? new Date()}
-          precision="day"
-          onClose={() => setCustomStartOpen(false)}
-          onConfirm={(date) => {
-            setCustomStartOpen(false);
-            setDraftDateFilter((previous) => ({ ...previous, customStart: date }));
-          }}
-        />
-        <DatePicker
-          visible={customEndOpen}
-          value={draftDateFilter.customEnd ?? draftDateFilter.customStart ?? new Date()}
-          precision="day"
-          onClose={() => setCustomEndOpen(false)}
-          onConfirm={(date) => {
-            setCustomEndOpen(false);
-            setDraftDateFilter((previous) => ({ ...previous, customEnd: date }));
-          }}
-        />
       </div>
     </Popup>
   );

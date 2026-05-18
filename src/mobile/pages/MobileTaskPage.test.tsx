@@ -163,7 +163,7 @@ describe('MobileTaskPage', () => {
   });
 
   it('falls back old mobile list view URLs to today', async () => {
-    renderPage('/tasks?view=today');
+    renderPage('/tasks?view=list');
 
     await waitFor(() =>
       expect(taskHooks.useTasks).toHaveBeenCalledWith(expect.objectContaining({ view: 'today' }))
@@ -308,7 +308,7 @@ describe('MobileTaskPage', () => {
     expect(card.textContent).not.toContain('妈妈');
   });
 
-  it('shows anniversary countdown semantics in the regular mobile task list', () => {
+  it('shows anniversary countdown semantics in the today mobile task list', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-10T12:00:00.000Z'));
     taskHooks.useTasks.mockReturnValue({
@@ -333,7 +333,7 @@ describe('MobileTaskPage', () => {
       refetch: vi.fn().mockResolvedValue(undefined),
     });
 
-    renderPage('/tasks?view=list');
+    renderPage('/tasks?view=today');
 
     const row = screen.getByText('结婚纪念日').closest('.mobile-task-row');
     expect(row).not.toBeNull();
@@ -536,6 +536,41 @@ describe('MobileTaskPage', () => {
     const payload = mutate.mock.calls[0][0] as { dueAt: string };
     expect(dayjs(payload.dueAt).format('YYYY-MM-DD HH:mm')).toBe(
       expectedDueAt.format('YYYY-MM-DD HH:mm')
+    );
+  });
+
+  it('clears the mobile assignee when switching to a personal list', async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <TaskEditorPopup
+        open
+        task={baseTask}
+        lists={[
+          { id: 1, name: '收集箱', scope: 'family', sort: 1, isArchived: false },
+          { id: 2, name: '个人事项', scope: 'personal', sort: 2, isArchived: false },
+        ]}
+        users={[{ id: 2, username: 'mom', nickname: '妈妈' }]}
+        defaultListId={1}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    expect(screen.getByText('妈妈')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText('个人事项')[0]);
+
+    await waitFor(() => expect(screen.queryByText('妈妈')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listId: 2,
+        assigneeId: null,
+      })
     );
   });
 

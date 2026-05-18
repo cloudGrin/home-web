@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, DatePicker, Form, Input, Select, Space, Tabs, Tooltip } from 'antd';
+import { Button, Card, Form, Input, Select, Space, Tabs, Tooltip } from 'antd';
 import { PlusOutlined, ReloadOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import type { TablePaginationConfig } from 'antd/es/table';
 import type { SorterResult } from 'antd/es/table/interface';
@@ -40,13 +40,11 @@ interface TaskSearchValues {
   listId?: number;
   status?: TaskStatus;
   assigneeId?: number;
-  dateRange?: [Dayjs, Dayjs];
   tags?: string[];
 }
 
 const highVolumeViews = new Set<TaskView>(['calendar', 'matrix', 'anniversary']);
 const aggregatedViews = new Set<TaskView>(['matrix', 'anniversary']);
-const dateRangeViews = new Set<TaskView>();
 const TASK_PAGE_LIMIT_MAX = 100;
 const taskSortFieldByColumn: Record<string, TaskSortField> = {
   title: 'title',
@@ -56,10 +54,6 @@ const taskSortFieldByColumn: Record<string, TaskSortField> = {
 
 function clampLimit(limit: number) {
   return Math.min(Math.max(limit, 1), TASK_PAGE_LIMIT_MAX);
-}
-
-function supportsDateRange(view: TaskView) {
-  return dateRangeViews.has(view);
 }
 
 function getDefaultLimit(view: TaskView) {
@@ -119,8 +113,6 @@ function getAggregationKey(params: QueryTasksParams) {
 function toQueryParams(values: Record<string, unknown>, view: TaskView): QueryTasksParams {
   const searchValues = values as TaskSearchValues;
   const keyword = searchValues.keyword?.trim();
-  const dateRange = searchValues.dateRange;
-  const shouldUseDateRange = supportsDateRange(view);
   const shouldUseStatus = view !== 'today';
 
   return {
@@ -132,22 +124,7 @@ function toQueryParams(values: Record<string, unknown>, view: TaskView): QueryTa
     status: shouldUseStatus ? searchValues.status : undefined,
     assigneeId: searchValues.assigneeId,
     tags: searchValues.tags?.length ? searchValues.tags : undefined,
-    startDate: shouldUseDateRange ? dateRange?.[0]?.startOf('day').toISOString() : undefined,
-    endDate: shouldUseDateRange ? dateRange?.[1]?.endOf('day').toISOString() : undefined,
   };
-}
-
-function toDateRange(startDate?: string, endDate?: string): [Dayjs, Dayjs] | undefined {
-  return startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined;
-}
-
-function toDateRangeParams(dateRange?: [Dayjs, Dayjs]) {
-  return dateRange
-    ? {
-        startDate: dateRange[0].startOf('day').toISOString(),
-        endDate: dateRange[1].endOf('day').toISOString(),
-      }
-    : {};
 }
 
 function getDefaultCreateDueAt(view: TaskView, queryParams: QueryTasksParams) {
@@ -178,9 +155,6 @@ export function TaskCenterPage() {
   const [queryParams, setQueryParams] = useState<QueryTasksParams>(() =>
     getInitialQueryParams(location.search)
   );
-  const [manualDateRange, setManualDateRange] = useState<[Dayjs, Dayjs] | undefined>(() =>
-    toDateRange(queryParams.startDate, queryParams.endDate)
-  );
   const [calendarMonth, setCalendarMonth] = useState(() => dayjs().startOf('month'));
   const [aggregatedTasks, setAggregatedTasks] = useState<Task[]>([]);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
@@ -190,7 +164,6 @@ export function TaskCenterPage() {
   const activeView = queryParams.view ?? 'list';
   const isHighVolumeView = highVolumeViews.has(activeView);
   const isAggregatedView = aggregatedViews.has(activeView);
-  const canUseDateRange = supportsDateRange(activeView);
   const aggregationKey = useMemo(() => getAggregationKey(queryParams), [queryParams]);
   const taskListsQuery = useTaskLists();
   const tasksQuery = useTasks(queryParams);
@@ -217,9 +190,6 @@ export function TaskCenterPage() {
 
   useEffect(() => {
     const taskId = getTaskIdFromSearch(location.search);
-    if (taskId) {
-      setManualDateRange(undefined);
-    }
 
     setQueryParams((previous) => {
       if (!taskId) {
@@ -253,17 +223,11 @@ export function TaskCenterPage() {
       status: queryParams.status,
       assigneeId: queryParams.assigneeId,
       tags: queryParams.tags,
-      dateRange: canUseDateRange
-        ? toDateRange(queryParams.startDate, queryParams.endDate)
-        : undefined,
     });
   }, [
-    canUseDateRange,
     queryParams.assigneeId,
-    queryParams.endDate,
     queryParams.keyword,
     queryParams.listId,
-    queryParams.startDate,
     queryParams.status,
     queryParams.tags,
     searchForm,
@@ -369,8 +333,6 @@ export function TaskCenterPage() {
 
   const handleSearch = (values: Record<string, unknown>) => {
     clearTaskIdFromUrl();
-    const searchValues = values as TaskSearchValues;
-    setManualDateRange(supportsDateRange(activeView) ? searchValues.dateRange : undefined);
     const nextParams = toQueryParams(values, activeView);
     setQueryParams(
       activeView === 'calendar'
@@ -384,7 +346,6 @@ export function TaskCenterPage() {
 
   const handleReset = () => {
     clearTaskIdFromUrl();
-    setManualDateRange(undefined);
     searchForm.resetFields();
     setQueryParams(
       activeView === 'calendar'
@@ -410,7 +371,6 @@ export function TaskCenterPage() {
       tags: previous.tags,
       sort: previous.sort,
       order: previous.order,
-      ...(supportsDateRange(view) && manualDateRange ? toDateRangeParams(manualDateRange) : {}),
       ...(view === 'calendar' ? getCalendarRange(calendarMonth) : {}),
     }));
   };
@@ -596,11 +556,6 @@ export function TaskCenterPage() {
               }))}
             />
           </Form.Item>
-          {canUseDateRange ? (
-            <Form.Item name="dateRange" label="日期范围">
-              <DatePicker.RangePicker className="w-full" />
-            </Form.Item>
-          ) : null}
           <Form.Item name="tags" label="标签">
             <Select mode="tags" placeholder="输入标签后回车" tokenSeparators={[',']} />
           </Form.Item>

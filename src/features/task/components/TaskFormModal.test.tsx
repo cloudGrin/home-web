@@ -246,6 +246,43 @@ describe('TaskFormModal', () => {
     );
   });
 
+  it('clears the assignee when a task is moved to a personal list', async () => {
+    const onSubmit = vi.fn();
+
+    renderWithProviders(
+      <TaskFormModal
+        open
+        task={{
+          ...task,
+          list: { id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false },
+        }}
+        lists={[
+          { id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false },
+          { id: 2, name: '个人事项', scope: 'personal', sort: 1, isArchived: false },
+        ]}
+        users={[{ id: 2, username: 'family-user', nickname: 'Family' }]}
+        submitting={false}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    await userEvent.click(screen.getByLabelText('所属清单'));
+    await userEvent.click((await screen.findAllByText('个人事项（个人）'))[0]);
+
+    expect(screen.queryByLabelText('负责人')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listId: 2,
+        assigneeId: null,
+      })
+    );
+  });
+
   it('requires moving a task out of an archived list before saving', async () => {
     const onSubmit = vi.fn();
 
