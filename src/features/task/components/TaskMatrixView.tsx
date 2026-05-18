@@ -2,7 +2,9 @@ import { useMemo, useState, type DragEvent } from 'react';
 import { Card, Empty, Space, Tag } from 'antd';
 import { usePermission } from '@/shared/hooks/usePermission';
 import { formatDate } from '@/shared/utils';
+import { useAuthStore } from '@/features/auth/stores/authStore';
 import type { PaginatedResult, Task, TaskActionPending } from '../types/task.types';
+import { isTaskAssignedToUser } from '../utils/taskAssignment';
 import { TaskQuickActions } from './TaskQuickActions';
 
 interface MatrixMoveTarget {
@@ -72,6 +74,7 @@ function TaskCard({
   onSnooze,
   onDelete,
   actionPending,
+  currentUserId,
   canMove,
   isDragging,
   onDragStart,
@@ -84,6 +87,7 @@ function TaskCard({
   onSnooze?: (task: Task) => void;
   onDelete: (task: Task) => void;
   actionPending?: TaskActionPending | null;
+  currentUserId?: number;
   canMove: boolean;
   isDragging: boolean;
   onDragStart: (event: DragEvent<HTMLDivElement>) => void;
@@ -111,6 +115,7 @@ function TaskCard({
             ))}
           </Space>
         ) : null}
+        {isTaskAssignedToUser(task, currentUserId) ? <Tag color="processing">指派给我</Tag> : null}
         <TaskQuickActions
           task={task}
           onEdit={onEdit}
@@ -138,6 +143,7 @@ export function TaskMatrixView({
   movingTaskId,
 }: TaskMatrixViewProps) {
   const { hasPermission } = usePermission();
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const tasks = useMemo(() => data?.items ?? [], [data?.items]);
   const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
   const [draggingTaskId, setDraggingTaskId] = useState<number | null>(null);
@@ -238,6 +244,7 @@ export function TaskMatrixView({
                     onSnooze={onSnooze}
                     onDelete={onDelete}
                     actionPending={actionPending}
+                    currentUserId={currentUserId}
                     canMove={canMoveTasks && movingTaskId !== task.id}
                     isDragging={draggingTaskId === task.id}
                     onDragStart={handleDragStart(task)}

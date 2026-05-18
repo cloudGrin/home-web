@@ -11,7 +11,9 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { SorterResult } from 'antd/es/table/interface';
 import { StatusBadge, TableActions } from '@/shared/components';
 import { formatDate } from '@/shared/utils';
+import { useAuthStore } from '@/features/auth/stores/authStore';
 import type { PaginatedResult, Task, TaskActionPending, TaskActionType } from '../types/task.types';
+import { isTaskAssignedToUser } from '../utils/taskAssignment';
 
 interface TaskTableProps {
   data?: PaginatedResult<Task>;
@@ -68,6 +70,7 @@ export function TaskTable({
   onTableChange,
   actionPending,
 }: TaskTableProps) {
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const columns: ColumnsType<Task> = [
     {
       title: '任务',
@@ -83,6 +86,7 @@ export function TaskTable({
           <span className="text-xs text-slate-500">
             {record.list?.name || `清单 #${record.listId}`}
           </span>
+          {isTaskAssignedToUser(record, currentUserId) ? <Tag color="processing">指派给我</Tag> : null}
           {record.checkItems?.length || record.attachments?.length ? (
             <span className="text-xs text-slate-500">
               {record.checkItems?.length

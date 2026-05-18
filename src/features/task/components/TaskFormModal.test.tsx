@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import dayjs from 'dayjs';
 import { TaskFormModal } from './TaskFormModal';
 import { renderWithProviders, userEvent } from '@/test/test-utils';
 import type { Task } from '../types/task.types';
+
+const defaultDueAt = dayjs('2026-05-18T18:00:00.000Z');
 
 const task: Task = {
   id: 9,
@@ -131,6 +134,7 @@ describe('TaskFormModal', () => {
         task={null}
         lists={[{ id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false }]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -168,6 +172,7 @@ describe('TaskFormModal', () => {
         task={null}
         lists={[]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -180,6 +185,7 @@ describe('TaskFormModal', () => {
         task={null}
         lists={[{ id: 2, name: '家庭计划', scope: 'family', sort: 0, isArchived: false }]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -212,6 +218,7 @@ describe('TaskFormModal', () => {
           { id: 2, name: '个人事项', scope: 'personal', sort: 1, isArchived: false },
         ]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -278,6 +285,7 @@ describe('TaskFormModal', () => {
         task={null}
         lists={[{ id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false }]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -303,6 +311,7 @@ describe('TaskFormModal', () => {
         task={null}
         lists={[{ id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false }]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -367,6 +376,7 @@ describe('TaskFormModal', () => {
         task={null}
         lists={[{ id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false }]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -398,6 +408,7 @@ describe('TaskFormModal', () => {
         task={null}
         lists={[{ id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false }]}
         users={[]}
+        defaultDueAt={defaultDueAt}
         submitting={false}
         onCancel={vi.fn()}
         onSubmit={onSubmit}
@@ -426,7 +437,7 @@ describe('TaskFormModal', () => {
     );
   });
 
-  it('requires a due date for recurring tasks', async () => {
+  it('requires a due date before submitting tasks', async () => {
     const onSubmit = vi.fn();
 
     renderWithProviders(
@@ -449,7 +460,7 @@ describe('TaskFormModal', () => {
     await userEvent.click(await screen.findByText('每天'));
     await userEvent.click(screen.getByRole('button', { name: 'OK' }));
 
-    expect(await screen.findByText('重复任务必须设置截止时间')).toBeInTheDocument();
+    expect(await screen.findByText('请选择截止时间')).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 

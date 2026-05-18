@@ -90,6 +90,8 @@ import {
   pickDefaultTaskListId,
   saveLastTaskListId,
 } from '@/features/task/utils/taskListPreference';
+import { isTaskAssignedToUser } from '@/features/task/utils/taskAssignment';
+import { useAuthStore } from '@/features/auth/stores/authStore';
 import { usePermission } from '@/shared/hooks/usePermission';
 import { formatTaskRecurrence, mobileTaskRecurrenceLabels } from '../utils/task';
 import { MobileModuleHeader } from '../components/MobileModuleHeader';
@@ -130,7 +132,7 @@ interface MobileDateFilter {
   customEnd?: Date;
 }
 
-const taskViews: MobileTaskView[] = ['list', 'today', 'calendar', 'matrix', 'anniversary'];
+const taskViews: MobileTaskView[] = ['today', 'calendar', 'matrix', 'anniversary'];
 
 const dockViewOptions: Array<{
   label: string;
@@ -138,7 +140,6 @@ const dockViewOptions: Array<{
   icon: ReactNode;
 }> = [
   { label: '今天', value: 'today', icon: <CheckSquareOutlined /> },
-  { label: '列表', value: 'list', icon: <FolderOpenOutlined /> },
   { label: '日历', value: 'calendar', icon: <CalendarOutlined /> },
   { label: '四象限', value: 'matrix', icon: <AppstoreOutlined /> },
   { label: '纪念日', value: 'anniversary', icon: <ClockCircleOutlined /> },
@@ -268,36 +269,8 @@ function getCalendarEmptyText(selectedDay: string) {
   return dayjs(selectedDay).isSame(dayjs(), 'day') ? '今天没有任务' : '当天没有任务';
 }
 
-function getDateFilterRange(filter: MobileDateFilter) {
-  if (filter.preset === 'today') {
-    return {
-      startDate: dayjs().startOf('day').toISOString(),
-      endDate: dayjs().endOf('day').toISOString(),
-    };
-  }
-
-  if (filter.preset === 'next7') {
-    return {
-      startDate: dayjs().startOf('day').toISOString(),
-      endDate: dayjs().add(7, 'day').endOf('day').toISOString(),
-    };
-  }
-
-  if (filter.preset === 'month') {
-    return {
-      startDate: dayjs().startOf('month').toISOString(),
-      endDate: dayjs().endOf('month').toISOString(),
-    };
-  }
-
-  if (filter.preset === 'custom' && filter.customStart && filter.customEnd) {
-    return {
-      startDate: dayjs(filter.customStart).startOf('day').toISOString(),
-      endDate: dayjs(filter.customEnd).endOf('day').toISOString(),
-    };
-  }
-
-  return {};
+function getDefaultTaskDueAt() {
+  return dayjs().hour(18).minute(0).second(0).millisecond(0).toDate();
 }
 
 function buildQueryParams(
@@ -322,7 +295,7 @@ function buildQueryParams(
     keyword: filters.keyword || undefined,
     listId: filters.listId,
     assigneeId: filters.assigneeId,
-    status: filters.status,
+    status: view === 'today' ? undefined : filters.status,
     tags: filters.tags?.length ? filters.tags : undefined,
     sort: sort.sort,
     order: sort.order,
@@ -331,8 +304,6 @@ function buildQueryParams(
   if (view === 'calendar') {
     params.startDate = month.startOf('month').toISOString();
     params.endDate = month.endOf('month').toISOString();
-  } else if (view === 'list') {
-    Object.assign(params, getDateFilterRange(filters.dateFilter));
   }
 
   return params;
@@ -341,7 +312,7 @@ function buildQueryParams(
 function buildEmptyDraft({
   defaultListId,
   taskType = 'task',
-  dueAt,
+  dueAt = getDefaultTaskDueAt(),
 }: {
   defaultListId?: number;
   taskType?: TaskType;
@@ -353,7 +324,7 @@ function buildEmptyDraft({
     listId: defaultListId,
     assigneeId: undefined,
     taskType,
-    dueAt: taskType === 'anniversary' ? (dueAt ?? new Date()) : dueAt,
+    dueAt,
     remindAt: undefined,
     important: false,
     urgent: false,
@@ -409,6 +380,9 @@ function taskDraftToPayload(draft: TaskDraft, isEditing: boolean): CreateTaskDto
   if (!draft.listId) {
     throw new Error('请选择清单');
   }
+  if (!draft.dueAt) {
+    throw new Error('请选择截止时间');
+  }
   if (draft.remindAt && draft.dueAt && draft.remindAt.getTime() > draft.dueAt.getTime()) {
     throw new Error('提醒时间不能晚于截止时间');
   }
@@ -425,7 +399,7 @@ function taskDraftToPayload(draft: TaskDraft, isEditing: boolean): CreateTaskDto
     listId: draft.listId,
     assigneeId: draft.assigneeId ?? null,
     taskType: draft.taskType,
-    dueAt: draft.dueAt ? draft.dueAt.toISOString() : null,
+    dueAt: draft.dueAt.toISOString(),
     remindAt: draft.remindAt ? draft.remindAt.toISOString() : null,
     important: draft.important,
     urgent: draft.urgent,
@@ -486,6 +460,7 @@ function flattenPagedTasks(pagedTasks: Record<number, Task[]>, page: number) {
 export function MobileTaskPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission } = usePermission();
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const view = parseTaskView(searchParams.get('view'));
   const selectedTaskId = parseTaskId(searchParams.get('taskId'));
   const selectedDay = searchParams.get('date') || dayjs().format('YYYY-MM-DD');
@@ -822,6 +797,7 @@ export function MobileTaskPage() {
               tasks={tasks}
               lists={taskLists}
               users={users}
+              currentUserId={currentUserId}
               loading={tasksQuery.isLoading}
               onMonthChange={changeCalendarMonth}
               onDayChange={setCalendarDay}
@@ -839,6 +815,7 @@ export function MobileTaskPage() {
               tasks={tasks}
               lists={taskLists}
               users={users}
+              currentUserId={currentUserId}
               loading={tasksQuery.isLoading}
               onOpen={openTaskDetail}
               onEdit={openEdit}
@@ -864,6 +841,7 @@ export function MobileTaskPage() {
               tasks={tasks}
               lists={taskLists}
               users={users}
+              currentUserId={currentUserId}
               loading={tasksQuery.isLoading}
               emptyText={getTaskListEmptyText(view)}
               showDayHeader={view === 'list'}
@@ -906,6 +884,7 @@ export function MobileTaskPage() {
         task={selectedTask}
         lists={taskLists}
         users={users}
+        currentUserId={currentUserId}
         togglePendingTaskId={togglePendingTaskId}
         onClose={closeTaskDetail}
         onEdit={(task) => {
@@ -1117,6 +1096,7 @@ function TaskListView({
   tasks,
   lists,
   users,
+  currentUserId,
   loading,
   emptyText,
   showDayHeader,
@@ -1132,6 +1112,7 @@ function TaskListView({
   tasks: Task[];
   lists: TaskList[];
   users: TaskAssignee[];
+  currentUserId?: number;
   loading?: boolean;
   emptyText: string;
   showDayHeader?: boolean;
@@ -1175,6 +1156,7 @@ function TaskListView({
                 task={task}
                 lists={lists}
                 users={users}
+                currentUserId={currentUserId}
                 onOpen={onOpen}
                 onEdit={canUpdate ? onEdit : undefined}
                 onToggleComplete={onToggleComplete}
@@ -1194,6 +1176,7 @@ function TaskRow({
   task,
   lists,
   users,
+  currentUserId,
   onOpen,
   onEdit,
   onToggleComplete,
@@ -1207,6 +1190,7 @@ function TaskRow({
   task: Task;
   lists: TaskList[];
   users: TaskAssignee[];
+  currentUserId?: number;
   onOpen: (task: Task) => void;
   onEdit?: (task: Task) => void;
   onToggleComplete: (task: Task) => void;
@@ -1261,6 +1245,9 @@ function TaskRow({
           ) : null}
           {task.attachments?.length ? <span>附件 {task.attachments.length}</span> : null}
           {assignee ? <span>{getUserName(assignee)}</span> : null}
+          {isTaskAssignedToUser(task, currentUserId) ? (
+            <span className="mobile-task-assigned-me">指派给我</span>
+          ) : null}
         </div>
       </div>
       {list ? <span className="mobile-task-list-name">{list.name}</span> : null}
@@ -1301,6 +1288,7 @@ function CalendarTaskView({
   tasks,
   lists,
   users,
+  currentUserId,
   loading,
   onMonthChange,
   onDayChange,
@@ -1318,6 +1306,7 @@ function CalendarTaskView({
   tasks: Task[];
   lists: TaskList[];
   users: TaskAssignee[];
+  currentUserId?: number;
   loading?: boolean;
   onMonthChange: (month: dayjs.Dayjs) => void;
   onDayChange: (day: string) => void;
@@ -1421,6 +1410,7 @@ function CalendarTaskView({
                     task={item.task}
                     lists={lists}
                     users={users}
+                    currentUserId={currentUserId}
                     onOpen={onOpen}
                     onEdit={canUpdate ? onEdit : undefined}
                     onToggleComplete={onToggleComplete}
@@ -1451,6 +1441,7 @@ function CalendarTaskView({
                     task={item.task}
                     lists={lists}
                     users={users}
+                    currentUserId={currentUserId}
                     onOpen={onOpen}
                     onEdit={canUpdate ? onEdit : undefined}
                     onToggleComplete={onToggleComplete}
@@ -1474,6 +1465,7 @@ function MatrixTaskView({
   tasks,
   lists,
   users,
+  currentUserId,
   loading,
   onOpen,
   onEdit,
@@ -1487,6 +1479,7 @@ function MatrixTaskView({
   tasks: Task[];
   lists: TaskList[];
   users: TaskAssignee[];
+  currentUserId?: number;
   loading?: boolean;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
@@ -1532,6 +1525,7 @@ function MatrixTaskView({
                     task={task}
                     lists={lists}
                     users={users}
+                    currentUserId={currentUserId}
                     onOpen={onOpen}
                     onEdit={canUpdate ? onEdit : undefined}
                     onToggleComplete={onToggleComplete}
@@ -1555,6 +1549,7 @@ function TaskDetailSheet({
   task,
   lists,
   users,
+  currentUserId,
   togglePendingTaskId,
   onClose,
   onEdit,
@@ -1573,6 +1568,7 @@ function TaskDetailSheet({
   task: Task | null;
   lists: TaskList[];
   users: TaskAssignee[];
+  currentUserId?: number;
   togglePendingTaskId?: number;
   onClose: () => void;
   onEdit: (task: Task) => void;
@@ -1669,6 +1665,9 @@ function TaskDetailSheet({
             <div className="mobile-chip-row">
               {task.important ? <Tag color="danger">重要</Tag> : null}
               {task.urgent ? <Tag color="warning">紧急</Tag> : null}
+              {isTaskAssignedToUser(task, currentUserId) ? (
+                <Tag color="primary">指派给我</Tag>
+              ) : null}
               {task.taskType === 'anniversary' ? <Tag color="primary">纪念日</Tag> : null}
               {task.tags?.map((tag) => (
                 <Tag key={tag}>{tag}</Tag>
@@ -2433,11 +2432,6 @@ function ScheduleSheet({
           </div>
           <div className="mobile-schedule-value">
             {draft.dueAt ? formatFullDateTime(draft.dueAt) : '未设置'}
-            {draft.dueAt ? (
-              <Button size="mini" fill="none" onClick={() => onChange({ dueAt: undefined })}>
-                清除
-              </Button>
-            ) : null}
           </div>
         </div>
 
@@ -2752,13 +2746,13 @@ function TaskListManagePopup({
   const deleteList = useDeleteTaskList();
   const [editing, setEditing] = useState<TaskList | null>(null);
   const [name, setName] = useState('');
-  const [scope, setScope] = useState<'personal' | 'family'>('family');
+  const [scope, setScope] = useState<'personal' | 'family'>('personal');
   const [isArchived, setIsArchived] = useState(false);
 
   const reset = () => {
     setEditing(null);
     setName('');
-    setScope('family');
+    setScope('personal');
     setIsArchived(false);
   };
 
@@ -2809,7 +2803,7 @@ function TaskListManagePopup({
               ]}
               value={[scope]}
               onChange={(items: Array<string | number>) =>
-                setScope((items[0] as 'personal' | 'family') || 'family')
+                setScope((items[0] as 'personal' | 'family') || 'personal')
               }
             />
           </div>

@@ -34,7 +34,11 @@ export function pickDefaultTaskListId(lists: TaskList[], preferredListId?: numbe
     return storedId;
   }
 
-  return activeLists.find((list) => list.scope === 'family')?.id ?? activeLists[0]?.id;
+  return (
+    activeLists.find((list) => list.scope === 'personal')?.id ??
+    activeLists.find((list) => list.scope === 'family')?.id ??
+    activeLists[0]?.id
+  );
 }
 
 export function getTaskListShortcuts(
@@ -47,6 +51,7 @@ export function getTaskListShortcuts(
   const ids = [
     selectedListId,
     storedId,
+    ...activeLists.filter((list) => list.scope === 'personal').map((list) => list.id),
     ...activeLists.filter((list) => list.scope === 'family').map((list) => list.id),
     ...activeLists.map((list) => list.id),
   ];

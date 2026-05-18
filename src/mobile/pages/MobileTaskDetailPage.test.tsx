@@ -155,6 +155,21 @@ describe('MobileTaskDetailPage', () => {
     expect(screen.queryByRole('button', { name: /完成/ })).not.toBeInTheDocument();
   });
 
+  it('marks standalone family tasks assigned to the current user', async () => {
+    taskHooks.useTask.mockReturnValue({
+      data: {
+        ...baseTask,
+        assigneeId: 1,
+        assignee: { id: 1, username: 'tester', nickname: '我' },
+      },
+      isLoading: false,
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('指派给我')).toBeInTheDocument();
+  });
+
   it('disables the standalone complete action while completion is pending', async () => {
     taskHooks.useCompleteTask.mockReturnValue({ mutate, isPending: true, variables: 42 });
 

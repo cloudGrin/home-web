@@ -3,6 +3,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { Badge, Button, Empty, List, Space, Tag } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { cn, formatDate } from '@/shared/utils';
+import { useAuthStore } from '@/features/auth/stores/authStore';
 import type { PaginatedResult, Task, TaskActionPending } from '../types/task.types';
 import {
   groupTasksByCalendarDate,
@@ -10,6 +11,7 @@ import {
   sortCalendarOccurrences,
   type TaskCalendarOccurrence,
 } from '../utils/taskCalendar';
+import { isTaskAssignedToUser } from '../utils/taskAssignment';
 import { TaskQuickActions } from './TaskQuickActions';
 
 interface TaskCalendarViewProps {
@@ -76,6 +78,7 @@ export function TaskCalendarView({
   onDelete,
   actionPending,
 }: TaskCalendarViewProps) {
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const groups = useMemo(
     () => groupTasksByCalendarDate(data?.items ?? [], startDate, endDate),
     [data?.items, endDate, startDate]
@@ -246,6 +249,9 @@ export function TaskCalendarView({
                       <span>{item.task.title}</span>
                       {item.task.status === 'completed' ? <Tag color="green">已完成</Tag> : null}
                       {isRecurringTask(item.task) ? <Tag color="blue">重复</Tag> : null}
+                      {isTaskAssignedToUser(item.task, currentUserId) ? (
+                        <Tag color="processing">指派给我</Tag>
+                      ) : null}
                     </Space>
                   }
                   description={

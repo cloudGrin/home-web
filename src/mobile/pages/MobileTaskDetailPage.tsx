@@ -29,6 +29,8 @@ import {
   openAttachmentWindow,
 } from '@/features/task/utils/attachmentWindow';
 import { usePermission } from '@/shared/hooks/usePermission';
+import { useAuthStore } from '@/features/auth/stores/authStore';
+import { isTaskAssignedToUser } from '@/features/task/utils/taskAssignment';
 import { SnoozeSheet, TaskEditorPopup, TaskQuadrantSheet } from './MobileTaskPage';
 import { formatTaskRecurrence } from '../utils/task';
 
@@ -93,6 +95,7 @@ export function MobileTaskDetailPage() {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [quadrantOpen, setQuadrantOpen] = useState(false);
   const { hasPermission } = usePermission();
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const taskQuery = useTask(Number.isInteger(taskId) ? taskId : null);
   const listsQuery = useTaskLists();
   const usersQuery = useTaskAssignees();
@@ -171,6 +174,9 @@ export function MobileTaskDetailPage() {
                 </Tag>
                 {task.important ? <Tag color="danger">重要</Tag> : null}
                 {task.urgent ? <Tag color="warning">紧急</Tag> : null}
+                {isTaskAssignedToUser(task, currentUserId) ? (
+                  <Tag color="primary">指派给我</Tag>
+                ) : null}
                 {task.taskType === 'anniversary' ? <Tag color="primary">纪念日</Tag> : null}
               </div>
               {task.description ? (

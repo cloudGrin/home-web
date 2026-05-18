@@ -129,7 +129,7 @@ export interface CreateTaskDto {
   listId: number;
   assigneeId?: number | null;
   taskType?: TaskType;
-  dueAt?: string | null;
+  dueAt: string;
   remindAt?: string | null;
   important?: boolean;
   urgent?: boolean;

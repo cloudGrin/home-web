@@ -1,5 +1,6 @@
 import { MemoryRouter } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
+import dayjs from 'dayjs';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MobileTaskPage, TaskEditorPopup } from './MobileTaskPage';
@@ -158,6 +159,15 @@ describe('MobileTaskPage', () => {
       expect(taskHooks.useTasks).toHaveBeenCalledWith(expect.objectContaining({ view: 'today' }))
     );
     expect(screen.getByRole('heading', { name: '今天' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '列表' })).not.toBeInTheDocument();
+  });
+
+  it('falls back old mobile list view URLs to today', async () => {
+    renderPage('/tasks?view=today');
+
+    await waitFor(() =>
+      expect(taskHooks.useTasks).toHaveBeenCalledWith(expect.objectContaining({ view: 'today' }))
+    );
   });
 
   it('opens a task detail sheet from the taskId query parameter', async () => {
@@ -498,6 +508,7 @@ describe('MobileTaskPage', () => {
   });
 
   it('uses the shared recent task list when creating on mobile', async () => {
+    const expectedDueAt = dayjs().hour(18).minute(0).second(0).millisecond(0);
     window.localStorage.setItem('home-task-last-list-id', '2');
     taskHooks.useTaskLists.mockReturnValue({
       data: [
@@ -518,10 +529,37 @@ describe('MobileTaskPage', () => {
 
     await waitFor(() =>
       expect(mutate).toHaveBeenCalledWith(
-        expect.objectContaining({ listId: 2 }),
+        expect.objectContaining({ listId: 2, dueAt: expect.any(String) }),
         expect.any(Object)
       )
     );
+    const payload = mutate.mock.calls[0][0] as { dueAt: string };
+    expect(dayjs(payload.dueAt).format('YYYY-MM-DD HH:mm')).toBe(
+      expectedDueAt.format('YYYY-MM-DD HH:mm')
+    );
+  });
+
+  it('marks mobile family tasks assigned to the current user', async () => {
+    taskHooks.useTasks.mockReturnValue({
+      data: {
+        items: [
+          {
+            ...baseTask,
+            assigneeId: 1,
+            assignee: { id: 1, username: 'tester', nickname: '我' },
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 50,
+      },
+      isLoading: false,
+      refetch: vi.fn().mockResolvedValue(undefined),
+    });
+
+    renderPage('/tasks?view=today');
+
+    expect(await screen.findByText('指派给我')).toBeInTheDocument();
   });
 
   it('loads the next mobile task page and appends it to the current view', async () => {
@@ -581,26 +619,30 @@ describe('MobileTaskPage', () => {
     await waitFor(() => expect(screen.queryByText('第二页任务')).not.toBeInTheDocument());
   });
 
-  it('applies mobile-friendly list date and sort filters', async () => {
-    const { container } = renderPage('/tasks?view=list');
+  it('applies mobile-friendly sort filters without list date filters', async () => {
+    const { container } = renderPage('/tasks?view=today');
 
     const filterButton = container.querySelector('.mobile-task-header-actions button');
     expect(filterButton).not.toBeNull();
     fireEvent.click(filterButton as Element);
-    fireEvent.click(await screen.findByText('未来 7 天'));
+    expect(screen.queryByText('未来 7 天')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('截止最近'));
     fireEvent.click(screen.getByRole('button', { name: '应用' }));
 
     await waitFor(() =>
       expect(taskHooks.useTasks).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          view: 'list',
+          view: 'today',
           sort: 'dueAt',
           order: 'ASC',
-          startDate: expect.any(String),
-          endDate: expect.any(String),
         })
       )
+    );
+    expect(taskHooks.useTasks).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({
+        startDate: expect.any(String),
+        endDate: expect.any(String),
+      })
     );
   });
 

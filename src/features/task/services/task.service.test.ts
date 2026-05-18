@@ -18,8 +18,9 @@ describe('taskService', () => {
   });
 
   it('maps task query and mutation endpoints to backend routes', () => {
+    const dueAt = '2026-05-18T10:00:00.000Z';
     taskService.getTasks({ view: 'today', page: 1, limit: 10, keyword: 'family' });
-    taskService.createTask({ title: 'Pay bills', listId: 1 });
+    taskService.createTask({ title: 'Pay bills', listId: 1, dueAt });
     taskService.updateTask(9, { title: 'Pay rent' });
     taskService.completeTask(9);
     taskService.reopenTask(9);
@@ -31,7 +32,7 @@ describe('taskService', () => {
     });
     expect(request.post).toHaveBeenCalledWith(
       '/tasks',
-      { title: 'Pay bills', listId: 1 },
+      { title: 'Pay bills', listId: 1, dueAt },
       expect.any(Object)
     );
     expect(request.put).toHaveBeenCalledWith('/tasks/9', { title: 'Pay rent' }, expect.any(Object));

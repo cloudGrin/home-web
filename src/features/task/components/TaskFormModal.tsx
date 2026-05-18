@@ -153,10 +153,14 @@ function normalizeCheckItems(values?: TaskFormValues['checkItems']) {
 
 function toPayload(values: TaskFormValues, isEditing: boolean): CreateTaskDto | UpdateTaskDto {
   const isRecurring = values.recurrenceType !== 'none';
+  if (!values.dueAt) {
+    throw new Error('请选择截止时间');
+  }
 
   const payload: CreateTaskDto = {
     title: values.title.trim(),
     listId: values.listId,
+    dueAt: values.dueAt.toISOString(),
     taskType: values.taskType,
     important: values.important,
     urgent: values.urgent,
@@ -181,12 +185,6 @@ function toPayload(values: TaskFormValues, isEditing: boolean): CreateTaskDto | 
   } else if (isEditing) {
     payload.assigneeId = null;
   }
-  if (values.dueAt) {
-    payload.dueAt = values.dueAt.toISOString();
-  } else if (isEditing) {
-    payload.dueAt = null;
-  }
-
   if (isRecurring) {
     const computedRemindAt =
       values.dueAt && typeof values.remindOffset === 'number'
@@ -563,6 +561,9 @@ export function TaskFormModal({
 
                   if (taskType === 'anniversary' && !value) {
                     return Promise.reject(new Error('纪念日必须设置日期'));
+                  }
+                  if (!value) {
+                    return Promise.reject(new Error('请选择截止时间'));
                   }
                   if (isRecurring && !value) {
                     return Promise.reject(new Error('重复任务必须设置截止时间'));

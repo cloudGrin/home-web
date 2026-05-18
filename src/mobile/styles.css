@@ -543,6 +543,14 @@ body {
   color: var(--mobile-primary);
 }
 
+.mobile-task-assigned-me {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mobile-primary) 12%, transparent);
+  color: var(--mobile-primary);
+  font-weight: 700;
+}
+
 .mobile-task-list-name {
   align-self: center;
   color: var(--mobile-muted);
@@ -557,7 +565,7 @@ body {
   left: 18px;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   padding: 7px;
   border: 1px solid rgba(255, 255, 255, 0.72);

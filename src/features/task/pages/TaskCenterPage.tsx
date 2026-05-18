@@ -46,7 +46,7 @@ interface TaskSearchValues {
 
 const highVolumeViews = new Set<TaskView>(['calendar', 'matrix', 'anniversary']);
 const aggregatedViews = new Set<TaskView>(['matrix', 'anniversary']);
-const dateRangeViews = new Set<TaskView>(['list']);
+const dateRangeViews = new Set<TaskView>();
 const TASK_PAGE_LIMIT_MAX = 100;
 const taskSortFieldByColumn: Record<string, TaskSortField> = {
   title: 'title',
@@ -92,9 +92,10 @@ function getTaskIdFromSearch(search: string) {
 }
 
 function getInitialQueryParams(search = window.location.search): QueryTasksParams {
+  const taskId = getTaskIdFromSearch(search);
   return {
-    ...getViewDefaults('list'),
-    taskId: getTaskIdFromSearch(search),
+    ...getViewDefaults(taskId ? 'list' : 'today'),
+    taskId,
   };
 }
 
@@ -120,6 +121,7 @@ function toQueryParams(values: Record<string, unknown>, view: TaskView): QueryTa
   const keyword = searchValues.keyword?.trim();
   const dateRange = searchValues.dateRange;
   const shouldUseDateRange = supportsDateRange(view);
+  const shouldUseStatus = view !== 'today';
 
   return {
     view,
@@ -127,7 +129,7 @@ function toQueryParams(values: Record<string, unknown>, view: TaskView): QueryTa
     limit: getDefaultLimit(view),
     keyword: keyword || undefined,
     listId: searchValues.listId,
-    status: searchValues.status,
+    status: shouldUseStatus ? searchValues.status : undefined,
     assigneeId: searchValues.assigneeId,
     tags: searchValues.tags?.length ? searchValues.tags : undefined,
     startDate: shouldUseDateRange ? dateRange?.[0]?.startOf('day').toISOString() : undefined,
@@ -154,7 +156,7 @@ function getDefaultCreateDueAt(view: TaskView, queryParams: QueryTasksParams) {
   }
 
   if (view !== 'calendar') {
-    return undefined;
+    return dayjs().hour(18).minute(0).second(0).millisecond(0);
   }
 
   const now = dayjs();
@@ -211,6 +213,7 @@ export function TaskCenterPage() {
       : undefined;
   const defaultCreateDueAt = getDefaultCreateDueAt(activeView, queryParams);
   const defaultCreateListId = pickDefaultTaskListId(activeTaskLists, queryParams.listId);
+  const visibleActiveView = activeView === 'list' ? 'today' : activeView;
 
   useEffect(() => {
     const taskId = getTaskIdFromSearch(location.search);
@@ -402,7 +405,7 @@ export function TaskCenterPage() {
       limit: getDefaultLimit(view),
       keyword: previous.keyword,
       listId: previous.listId,
-      status: previous.status,
+      status: view === 'today' ? undefined : previous.status,
       assigneeId: previous.assigneeId,
       tags: previous.tags,
       sort: previous.sort,
@@ -605,18 +608,9 @@ export function TaskCenterPage() {
       }
     >
       <Tabs
-        activeKey={activeView}
+        activeKey={visibleActiveView}
         onChange={handleTabChange}
         items={[
-          {
-            key: 'list',
-            label: '清单',
-            children: (
-              <Card>
-                <TaskTable {...sharedViewProps} onTableChange={handleTableChange} />
-              </Card>
-            ),
-          },
           {
             key: 'today',
             label: '今日',

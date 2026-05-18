@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { TaskCenterPage } from './TaskCenterPage';
@@ -163,6 +163,10 @@ describe('TaskCenterPage', () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders task center tabs', () => {
     setMockUser(
       createMockUser({
@@ -173,11 +177,27 @@ describe('TaskCenterPage', () => {
     renderTaskCenter();
 
     expect(screen.getByText('任务中心')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '清单' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '清单' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '今日' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '日历' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '四象限' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '纪念日' })).toBeInTheDocument();
+  });
+
+  it('defaults task center queries to today', () => {
+    setMockUser(
+      createMockUser({
+        permissions: ['task:read'],
+      })
+    );
+
+    renderTaskCenter();
+
+    expect(getLastTaskQueryParams()).toEqual(
+      expect.objectContaining({
+        view: 'today',
+      })
+    );
   });
 
   it('hides create button without task:create permission', () => {
@@ -201,7 +221,7 @@ describe('TaskCenterPage', () => {
 
     renderTaskCenter();
 
-    await userEvent.click(screen.getByRole('button', { name: /新建任务/ }));
+    fireEvent.click(screen.getByRole('button', { name: /新建任务/ }));
 
     expect(
       screen.getByPlaceholderText('例如：给家里买菜、准备周会、结婚纪念日')
@@ -228,16 +248,71 @@ describe('TaskCenterPage', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'OK' }));
 
-    expect(createMutation.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dueAt: expect.any(String),
-      }),
-      expect.any(Object)
+    await waitFor(() =>
+      expect(createMutation.mutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dueAt: expect.any(String),
+        }),
+        expect.any(Object)
+      )
     );
 
     const payload = createMutation.mutate.mock.calls[0][0] as { dueAt: string };
     expect(dayjs(payload.dueAt).isBefore(dayjs(calendarParams.startDate))).toBe(false);
     expect(dayjs(payload.dueAt).isAfter(dayjs(calendarParams.endDate))).toBe(false);
+  });
+
+  it('defaults new PC tasks to today at 18:00', async () => {
+    const expectedDueAt = dayjs().hour(18).minute(0).second(0).millisecond(0);
+    const createMutation = mockMutationWithSuccess();
+    taskHookMocks.useCreateTask.mockReturnValue(createMutation);
+    setMockUser(
+      createMockUser({
+        permissions: ['task:read', 'task:create'],
+      })
+    );
+
+    renderTaskCenter();
+    await userEvent.click(screen.getByRole('button', { name: /新建任务/ }));
+    await userEvent.type(
+      screen.getByPlaceholderText('例如：给家里买菜、准备周会、结婚纪念日'),
+      '默认今天截止'
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    const payload = createMutation.mutate.mock.calls[0][0] as { dueAt: string };
+    expect(dayjs(payload.dueAt).format('YYYY-MM-DD HH:mm')).toBe(
+      expectedDueAt.format('YYYY-MM-DD HH:mm')
+    );
+  });
+
+  it('marks family tasks assigned to the current user', () => {
+    taskHookMocks.useTasks.mockReturnValue({
+      data: {
+        items: [
+          createTaskFixture({
+            title: '我的家庭任务',
+            list: { id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false },
+            assigneeId: 999,
+            assignee: { id: 999, username: 'testuser', nickname: '我' },
+          }),
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 10,
+      },
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    setMockUser(
+      createMockUser({
+        permissions: ['task:read'],
+      })
+    );
+
+    renderTaskCenter();
+
+    expect(screen.getByText('指派给我')).toBeInTheDocument();
   });
 
   it('uses the recent task list when creating from an aggregated PC view', async () => {
@@ -606,7 +681,7 @@ describe('TaskCenterPage', () => {
     );
   });
 
-  it('does not carry the calendar default date range back to the list view', async () => {
+  it('does not carry the calendar default date range back to the today view', async () => {
     setMockUser(
       createMockUser({
         permissions: ['task:read'],
@@ -615,11 +690,11 @@ describe('TaskCenterPage', () => {
 
     renderTaskCenter();
     await userEvent.click(screen.getByRole('tab', { name: '日历' }));
-    await userEvent.click(screen.getByRole('tab', { name: '清单' }));
+    await userEvent.click(screen.getByRole('tab', { name: '今日' }));
 
     expect(getLastTaskQueryParams()).toEqual(
       expect.objectContaining({
-        view: 'list',
+        view: 'today',
       })
     );
     expect(getLastTaskQueryParams()).not.toEqual(
