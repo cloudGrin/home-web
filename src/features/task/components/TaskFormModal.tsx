@@ -230,10 +230,17 @@ export function TaskFormModal({
   const [uploadedAttachments, setUploadedAttachments] = useState<TaskAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const activeLists = lists.filter((list) => !list.isArchived);
+  const currentList = task
+    ? (lists.find((list) => list.id === task.listId) ?? task.list)
+    : undefined;
+  const blocksPersonalListTargets = Boolean(task && currentList?.scope === 'family');
+  const selectableLists = blocksPersonalListTargets
+    ? activeLists.filter((list) => list.scope === 'family')
+    : activeLists;
   const firstActiveListId =
-    defaultListId && activeLists.some((list) => list.id === defaultListId)
+    defaultListId && selectableLists.some((list) => list.id === defaultListId)
       ? defaultListId
-      : activeLists[0]?.id;
+      : selectableLists[0]?.id;
   const initializedKeyRef = useRef<number | 'create' | null>(null);
 
   const handleRecurrenceTypeChange = (value: TaskRecurrenceType) => {
@@ -258,9 +265,6 @@ export function TaskFormModal({
       continuousReminderEnabled: false,
     });
   };
-  const currentList = task
-    ? (lists.find((list) => list.id === task.listId) ?? task.list)
-    : undefined;
   const mustMigrateArchivedList = Boolean(task && currentList?.isArchived);
   const customRecurringReminder =
     task?.recurrenceType !== 'none' &&
@@ -517,7 +521,7 @@ export function TaskFormModal({
           >
             <Select
               placeholder="请选择清单"
-              options={activeLists.map((list) => ({
+              options={selectableLists.map((list) => ({
                 label: formatTaskListOptionLabel(list),
                 value: list.id,
               }))}

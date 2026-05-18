@@ -539,7 +539,7 @@ describe('MobileTaskPage', () => {
     );
   });
 
-  it('clears the mobile assignee when switching to a personal list', async () => {
+  it('does not offer personal lists when editing a family task on mobile', () => {
     const onSubmit = vi.fn();
 
     render(
@@ -558,10 +558,38 @@ describe('MobileTaskPage', () => {
     );
 
     expect(screen.getByText('妈妈')).toBeInTheDocument();
+    expect(screen.queryByText('个人事项')).not.toBeInTheDocument();
+  });
+
+  it('clears the mobile assignee when a new task uses a personal list', async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <TaskEditorPopup
+        open
+        task={null}
+        lists={[
+          { id: 1, name: '收集箱', scope: 'family', sort: 1, isArchived: false },
+          { id: 2, name: '个人事项', scope: 'personal', sort: 2, isArchived: false },
+        ]}
+        users={[{ id: 2, username: 'mom', nickname: '妈妈' }]}
+        defaultListId={1}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /负责人/ }));
+    fireEvent.click(screen.getByText('妈妈'));
+    expect(screen.getAllByText('妈妈').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '完成' }));
 
     fireEvent.click(screen.getAllByText('个人事项')[0]);
 
     await waitFor(() => expect(screen.queryByText('妈妈')).not.toBeInTheDocument());
+    fireEvent.change(screen.getByPlaceholderText('准备做什么？'), {
+      target: { value: '个人任务' },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 

@@ -1913,6 +1913,11 @@ export function TaskEditorPopup({
   const [tagsOpen, setTagsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [anniversaryDateOpen, setAnniversaryDateOpen] = useState(false);
+  const originalList = task ? (task.list ?? lists.find((list) => list.id === task.listId)) : null;
+  const blocksPersonalListTargets = Boolean(task && originalList?.scope === 'family');
+  const selectableLists = blocksPersonalListTargets
+    ? lists.filter((list) => list.scope === 'family')
+    : lists;
 
   useEffect(() => {
     if (!open) return;
@@ -1933,6 +1938,10 @@ export function TaskEditorPopup({
 
   const updateDraft = (patch: Partial<TaskDraft>) => {
     setDraft((previous) => {
+      if (patch.listId && !selectableLists.some((list) => list.id === patch.listId)) {
+        return previous;
+      }
+
       const next = { ...previous, ...patch };
       const nextList = lists.find((list) => list.id === next.listId);
       if (nextList?.scope === 'personal') {
@@ -1973,8 +1982,9 @@ export function TaskEditorPopup({
   const canAssignTask = selectedList?.scope !== 'personal';
   const selectedUser = canAssignTask ? users.find((user) => user.id === draft.assigneeId) : null;
   const isAnniversary = draft.taskType === 'anniversary';
-  const listShortcuts = getTaskListShortcuts(lists, draft.listId);
-  const hasMoreLists = lists.filter((list) => !list.isArchived).length > listShortcuts.length;
+  const listShortcuts = getTaskListShortcuts(selectableLists, draft.listId);
+  const hasMoreLists =
+    selectableLists.filter((list) => !list.isArchived).length > listShortcuts.length;
 
   useEffect(() => {
     if (!open || !draft.assigneeId) {
@@ -2309,7 +2319,7 @@ export function TaskEditorPopup({
       />
       <FieldSheet title="选择清单" open={listOpen} onClose={() => setListOpen(false)}>
         <Selector
-          options={lists.map((list) => ({ label: list.name, value: list.id }))}
+          options={selectableLists.map((list) => ({ label: list.name, value: list.id }))}
           value={draft.listId ? [draft.listId] : []}
           onChange={(items: Array<string | number>) =>
             updateDraft({ listId: Number(items[0]) || undefined })

@@ -246,7 +246,7 @@ describe('TaskFormModal', () => {
     );
   });
 
-  it('clears the assignee when a task is moved to a personal list', async () => {
+  it('does not offer personal lists when editing a family task', async () => {
     const onSubmit = vi.fn();
 
     renderWithProviders(
@@ -268,19 +268,46 @@ describe('TaskFormModal', () => {
     );
 
     await userEvent.click(screen.getByLabelText('所属清单'));
+
+    expect((await screen.findAllByText('家庭计划（家庭）')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('个人事项（个人）')).not.toBeInTheDocument();
+  });
+
+  it('clears the assignee when a new task uses a personal list', async () => {
+    const onSubmit = vi.fn();
+
+    renderWithProviders(
+      <TaskFormModal
+        open
+        lists={[
+          { id: 1, name: '家庭计划', scope: 'family', sort: 0, isArchived: false },
+          { id: 2, name: '个人事项', scope: 'personal', sort: 1, isArchived: false },
+        ]}
+        users={[{ id: 2, username: 'family-user', nickname: 'Family' }]}
+        defaultDueAt={defaultDueAt}
+        defaultListId={1}
+        submitting={false}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    await userEvent.click(screen.getByLabelText('负责人'));
+    await userEvent.click(await screen.findByText('Family'));
+    await userEvent.click(screen.getByLabelText('所属清单'));
     await userEvent.click((await screen.findAllByText('个人事项（个人）'))[0]);
 
-    expect(screen.queryByLabelText('负责人')).not.toBeInTheDocument();
-
+    await waitFor(() => expect(screen.queryByLabelText('负责人')).not.toBeInTheDocument());
+    await userEvent.type(
+      screen.getByPlaceholderText('例如：给家里买菜、准备周会、结婚纪念日'),
+      '个人任务'
+    );
     await userEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        listId: 2,
-        assigneeId: null,
-      })
-    );
+    const payload = onSubmit.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload).toEqual(expect.objectContaining({ listId: 2 }));
+    expect(payload).not.toHaveProperty('assigneeId');
   });
 
   it('requires moving a task out of an archived list before saving', async () => {
